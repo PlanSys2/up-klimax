@@ -1,0 +1,28 @@
+==>
+15 move tiago living hall
+28 move tiago hall kitchen
+36 open-fridge tiago kitchen
+37 take-from-fridge tiago juice kitchen
+38 close-fridge tiago kitchen
+62 move tiago kitchen hall
+73 move tiago hall bedroom
+83 drop tiago juice bedroom
+110 pick tiago book bedroom
+124 move tiago bedroom hall
+141 move tiago hall living
+148 drop tiago book living
+root 2 86
+2 deliver juice bedroom -> m-deliver 7 34 50 83
+7 go-to tiago kitchen -> m-go-step 15 17
+17 go-to tiago kitchen -> m-go-step 28 30
+30 go-to tiago kitchen -> m-go-arrived
+34 fetch tiago juice kitchen -> m-fetch-fridge 36 37 38
+50 go-to tiago bedroom -> m-go-step 62 68
+68 go-to tiago bedroom -> m-go-step 73 81
+81 go-to tiago bedroom -> m-go-arrived
+86 deliver book living -> m-deliver 108 149 113 148
+108 go-to tiago bedroom -> m-go-arrived
+113 go-to tiago living -> m-go-step 124 131
+131 go-to tiago living -> m-go-step 141 146
+146 go-to tiago living -> m-go-arrived
+149 fetch tiago book bedroom -> m-fetch-plain 110

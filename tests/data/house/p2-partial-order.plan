@@ -1,0 +1,32 @@
+==>
+518 move tiago living hall
+1768 move tiago hall kitchen
+3015 open-fridge tiago kitchen
+3295 take-from-fridge tiago juice kitchen
+3297 close-fridge tiago kitchen
+3299 move tiago kitchen hall
+4735 move tiago hall bedroom
+7497 drop tiago juice bedroom
+14327 pick tiago book bedroom
+20285 move tiago bedroom hall
+20298 move tiago hall living
+20302 drop tiago book living
+28483 move kobuki bedroom hall
+root 41 3 7675 20305
+3 deliver book living -> m-deliver 36 28488 14617 20302
+36 go-to tiago bedroom -> m-go-step 3299 3302
+41 deliver juice bedroom -> m-deliver 81 3012 3298 7497
+81 go-to tiago kitchen -> m-go-step 518 677
+677 go-to tiago kitchen -> m-go-step 1768 3007
+3007 go-to tiago kitchen -> m-go-arrived
+3012 fetch tiago juice kitchen -> m-fetch-fridge 3015 3295 3297
+3298 go-to tiago bedroom -> m-go-arrived
+3302 go-to tiago bedroom -> m-go-step 4735 7495
+7495 go-to tiago bedroom -> m-go-arrived
+7675 go-to tiago hall -> m-go-step 20285 20296
+14617 go-to tiago living -> m-go-step 20298 20300
+20296 go-to tiago hall -> m-go-arrived
+20300 go-to tiago living -> m-go-arrived
+20305 go-to kobuki hall -> m-go-step 28483 28486
+28486 go-to kobuki hall -> m-go-arrived
+28488 fetch tiago book bedroom -> m-fetch-plain 14327

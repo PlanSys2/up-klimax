@@ -1,0 +1,24 @@
+(define (problem breakfast-two-robots)
+  (:domain house)
+  (:objects
+    kitchen hall living bedroom - room
+    tiago kobuki - robot
+    juice book - item)
+  (:htn
+    :subtasks (and
+      (t1 (deliver juice bedroom))
+      (t2 (deliver book living))
+      (t3 (go-to tiago hall))
+      (t4 (go-to kobuki hall)))
+    :ordering (and
+      (< t1 t3)
+      (< t2 t4)))
+  (:init
+    (connected kitchen hall) (connected hall kitchen)
+    (connected hall living) (connected living hall)
+    (connected hall bedroom) (connected bedroom hall)
+    (at tiago living) (hand-empty tiago)
+    (at kobuki bedroom) (hand-empty kobuki)
+    (fridge-at kitchen)
+    (item-at juice kitchen) (in-fridge juice)
+    (item-at book bedroom)))

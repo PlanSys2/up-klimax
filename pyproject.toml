@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "up-klimax"
+dynamic = ["version"]
+description = "Klimax, an HTN planner for HDDL, as an engine of the Unified Planning Framework"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{ name = "Francisco Martín Rico" }]
+requires-python = ">=3.10"
+dependencies = ["unified-planning", "klimax-planner"]
+keywords = ["planning", "htn", "hddl", "unified-planning", "aiplan4eu", "hierarchical planning", "robotics"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/PlanSys2/up-klimax"
+Klimax = "https://github.com/PlanSys2/klimax"
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools]
+packages = ["up_klimax"]
+
+[tool.setuptools.dynamic]
+version = { attr = "up_klimax.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,100 @@
+(define (domain house)
+  (:requirements :typing :hierarchy :negative-preconditions :method-preconditions)
+  (:types room robot item)
+
+  (:predicates
+    (at ?r - robot ?l - room)
+    (connected ?a ?b - room)
+    (item-at ?i - item ?l - room)
+    (holding ?r - robot ?i - item)
+    (hand-empty ?r - robot)
+    (in-fridge ?i - item)
+    (fridge-at ?l - room)
+    (fridge-open))
+
+  ; Abstract tasks: what has to be done, not how
+  (:task deliver :parameters (?i - item ?to - room))
+  (:task go-to   :parameters (?r - robot ?to - room))
+  (:task fetch   :parameters (?r - robot ?i - item ?l - room))
+
+  ; deliver: go for the item, take it, carry it, leave it
+  (:method m-deliver
+    :parameters (?i - item ?from ?to - room ?r - robot)
+    :task (deliver ?i ?to)
+    :precondition (item-at ?i ?from)
+    :ordered-subtasks (and
+      (go-to ?r ?from)
+      (fetch ?r ?i ?from)
+      (go-to ?r ?to)
+      (drop ?r ?i ?to)))
+
+  ; deliver: nothing to do if it is already there
+  (:method m-deliver-done
+    :parameters (?i - item ?to - room)
+    :task (deliver ?i ?to)
+    :precondition (item-at ?i ?to)
+    :ordered-subtasks ())
+
+  ; go-to: recursive, one step at a time
+  (:method m-go-arrived
+    :parameters (?r - robot ?to - room)
+    :task (go-to ?r ?to)
+    :precondition (at ?r ?to)
+    :ordered-subtasks ())
+
+  (:method m-go-step
+    :parameters (?r - robot ?from ?mid ?to - room)
+    :task (go-to ?r ?to)
+    :precondition (and (at ?r ?from) (connected ?from ?mid))
+    :ordered-subtasks (and
+      (move ?r ?from ?mid)
+      (go-to ?r ?to)))
+
+  ; fetch: two procedures, depending on where the item is
+  (:method m-fetch-plain
+    :parameters (?r - robot ?i - item ?l - room)
+    :task (fetch ?r ?i ?l)
+    :precondition (not (in-fridge ?i))
+    :ordered-subtasks (pick ?r ?i ?l))
+
+  ; The fridge is closed afterwards because the procedure says so, not because a goal needs it
+  (:method m-fetch-fridge
+    :parameters (?r - robot ?i - item ?l - room)
+    :task (fetch ?r ?i ?l)
+    :precondition (in-fridge ?i)
+    :ordered-subtasks (and
+      (open-fridge ?r ?l)
+      (take-from-fridge ?r ?i ?l)
+      (close-fridge ?r ?l)))
+
+  (:action move
+    :parameters (?r - robot ?from ?to - room)
+    :precondition (and (at ?r ?from) (connected ?from ?to))
+    :effect (and (not (at ?r ?from)) (at ?r ?to)))
+
+  (:action pick
+    :parameters (?r - robot ?i - item ?l - room)
+    :precondition (and (at ?r ?l) (item-at ?i ?l) (hand-empty ?r) (not (in-fridge ?i)))
+    :effect (and (not (item-at ?i ?l)) (not (hand-empty ?r)) (holding ?r ?i)))
+
+  (:action drop
+    :parameters (?r - robot ?i - item ?l - room)
+    :precondition (and (at ?r ?l) (holding ?r ?i))
+    :effect (and (item-at ?i ?l) (hand-empty ?r) (not (holding ?r ?i))))
+
+  (:action open-fridge
+    :parameters (?r - robot ?l - room)
+    :precondition (and (at ?r ?l) (fridge-at ?l) (not (fridge-open)))
+    :effect (fridge-open))
+
+  (:action take-from-fridge
+    :parameters (?r - robot ?i - item ?l - room)
+    :precondition (and (at ?r ?l) (fridge-at ?l) (fridge-open) (in-fridge ?i) (item-at ?i ?l)
+                       (hand-empty ?r))
+    :effect (and (not (in-fridge ?i)) (not (item-at ?i ?l)) (not (hand-empty ?r))
+                 (holding ?r ?i)))
+
+  (:action close-fridge
+    :parameters (?r - robot ?l - room)
+    :precondition (and (at ?r ?l) (fridge-at ?l) (fridge-open))
+    :effect (not (fridge-open))))
