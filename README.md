@@ -40,6 +40,11 @@ with PlanValidator(name="klimax-val") as validator:
   plan it gives shorter ones as it finds them. When the problem asks for the shortest plan
   (`MinimizeSequentialPlanLength`) and Klimax proves that it has it, the status is
   `SOLVED_OPTIMALLY`.
+- **`klimax-replanner`** and **`klimax-repairer`**: `Replanner(problem,
+  name="klimax-replanner")` keeps the problem, takes changes to it (initial values, goals,
+  actions) and plans again; `PlanRepairer(name="klimax-repairer")` gives a plan back as it is if
+  it is still valid for the problem, and plans again if not. UPF's own replanner does not take
+  hierarchical problems.
 - **`klimax-val`**, a validator of hierarchical plans: it checks the decomposition, not only
   that the actions can be executed.
 

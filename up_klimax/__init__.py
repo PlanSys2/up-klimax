@@ -19,16 +19,18 @@
     with OneshotPlanner(name="klimax") as planner:
         result = planner.solve(hierarchical_problem, timeout=10)
 
-Also "klimax-val", a validator of hierarchical plans, and a compiler that other HTN engines can
+Also "klimax-val", a validator of hierarchical plans; "klimax-replanner" and "klimax-repairer";
+and a compiler that other HTN engines can
 use: "klimax-htn-usertype-fluents-remover" (fluents with object values as predicates).
 """
 
 from .compiler import HtnUsertypeFluentsRemover, plan_back
 from .engine import KlimaxEngine, KlimaxValidator
+from .replan import KlimaxRepairer, KlimaxReplanner
 
 __version__ = "0.0.1"
-__all__ = ["HtnUsertypeFluentsRemover", "KlimaxEngine", "KlimaxValidator", "plan_back",
-           "register"]
+__all__ = ["HtnUsertypeFluentsRemover", "KlimaxEngine", "KlimaxRepairer", "KlimaxReplanner",
+           "KlimaxValidator", "plan_back", "register"]
 
 
 def register(environment=None):
@@ -39,6 +41,10 @@ def register(environment=None):
         env.factory.add_engine("klimax", __name__, "KlimaxEngine")
     if "klimax-val" not in env.factory.engines:
         env.factory.add_engine("klimax-val", __name__, "KlimaxValidator")
+    if "klimax-replanner" not in env.factory.engines:
+        env.factory.add_engine("klimax-replanner", __name__, "KlimaxReplanner")
+    if "klimax-repairer" not in env.factory.engines:
+        env.factory.add_engine("klimax-repairer", __name__, "KlimaxRepairer")
     if "klimax-htn-usertype-fluents-remover" not in env.factory.engines:
         env.factory.add_engine(
             "klimax-htn-usertype-fluents-remover", __name__, "HtnUsertypeFluentsRemover")
