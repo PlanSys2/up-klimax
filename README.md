@@ -25,6 +25,10 @@ with PlanValidator(name="klimax-val") as validator:
   parameters and what each of its subtasks became. Every plan is verified, independently of
   the search, before it is returned. When there is no plan it says so as a proof
   (`UNSOLVABLE_PROVEN`).
+- The same engine as an **anytime planner** (`AnytimePlanner(name="klimax")`): after the first
+  plan it gives shorter ones as it finds them. When the problem asks for the shortest plan
+  (`MinimizeSequentialPlanLength`) and Klimax proves that it has it, the status is
+  `SOLVED_OPTIMALLY`.
 - **`klimax-val`**, a validator of hierarchical plans: it checks the decomposition, not only
   that the actions can be executed.
 

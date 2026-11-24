@@ -18,8 +18,8 @@ from unified_planning.engines import PlanGenerationResultStatus as S
 from unified_planning.engines import ValidationResultStatus as V
 from unified_planning.model.htn import HierarchicalProblem, Method
 from unified_planning.shortcuts import (
-    And, BoolType, Equals, Exists, Fluent, Forall, InstantaneousAction, Not, Object,
-    OneshotPlanner, Or, PlanValidator, UserType, Variable, get_environment)
+    And, BoolType, Equals, Exists, Fluent, Forall, InstantaneousAction,
+    MinimizeSequentialPlanLength, Not, Object, OneshotPlanner, Or, PlanValidator, UserType, Variable, get_environment)
 from unified_planning.test.examples import get_example_problems
 
 import up_klimax
@@ -77,13 +77,17 @@ VARIANTS = ["plain", "partial", "subtypes", "negative", "disjunctive", "equaliti
 
 
 def test_each_feature_is_planned_with():
-    problems = [lamps(v) for v in VARIANTS] + [get_example_problems()["htn-go"].problem]
+    shortest = lamps("plain")
+    shortest.name = "shortest"
+    shortest.add_quality_metric(MinimizeSequentialPlanLength())
+    problems = [lamps(v) for v in VARIANTS] + [
+        get_example_problems()["htn-go"].problem, shortest]
     seen = set()
     for problem in problems:
         assert up_klimax.KlimaxEngine.supports(problem.kind), problem.name
         with OneshotPlanner(name="klimax") as planner:
             result = planner.solve(problem, timeout=10)
-        assert result.status == S.SOLVED_SATISFICING, problem.name
+        assert result.status in (S.SOLVED_SATISFICING, S.SOLVED_OPTIMALLY), problem.name
         with PlanValidator(name="klimax-val") as validator:
             assert validator.validate(problem, result.plan).status == V.VALID, problem.name
         seen |= problem.kind.features

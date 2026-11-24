@@ -13,13 +13,20 @@
 # limitations under the License.
 
 """Klimax as an engine of the Unified Planning Framework: planning in the same process
-(klimax-planner) for hierarchical problems, and its verifier of hierarchical plans."""
+(klimax-planner) for hierarchical problems, anytime with a proof of the shortest plan, and its
+verifier of hierarchical plans."""
 
-from typing import Optional
+import queue
+import threading
+from typing import Iterator, Optional
 
 import klimax
 import unified_planning as up
 from unified_planning.engines import Credits, Engine
+from unified_planning.engines.mixins.anytime_planner import (
+    AnytimeGuarantee,
+    AnytimePlannerMixin,
+)
 from unified_planning.engines.mixins.oneshot_planner import (
     OneshotPlannerMixin,
     OptimalityGuarantee,
@@ -83,18 +90,23 @@ def _logs(diagnostics):
     return [LogMessage(_LOG_LEVEL[d.severity], str(d)) for d in diagnostics]
 
 
-class KlimaxEngine(Engine, OneshotPlannerMixin):
+class KlimaxEngine(Engine, OneshotPlannerMixin, AnytimePlannerMixin):
     """Klimax in UPF (its verifier is KlimaxValidator, "klimax-val").
 
     Options (``OneshotPlanner(name="klimax", params={...})``):
 
+    - ``anytime``: go on after the first plan, looking for shorter ones, until none is left or
+      the timeout. By default, as a oneshot planner, only when the problem asks for the
+      shortest plan (`MinimizeSequentialPlanLength`) and a timeout is given; always as an
+      anytime planner. A plan proved the shortest comes back as `SOLVED_OPTIMALLY`.
     - ``timeout``: seconds when the call gives none (default 30).
     """
 
     def __init__(self, **options):
         Engine.__init__(self)
         OneshotPlannerMixin.__init__(self)
-        unknown = set(options) - {"timeout"}
+        AnytimePlannerMixin.__init__(self)
+        unknown = set(options) - {"timeout", "anytime"}
         if unknown:
             raise up.exceptions.UPUsageError(f"unknown Klimax options: {sorted(unknown)}")
         self._options = options
@@ -113,7 +125,12 @@ class KlimaxEngine(Engine, OneshotPlannerMixin):
 
     @staticmethod
     def satisfies(optimality_guarantee: OptimalityGuarantee) -> bool:
+        # Satisficing; a plan proved the shortest comes back as SOLVED_OPTIMALLY
         return optimality_guarantee == OptimalityGuarantee.SATISFICING
+
+    @staticmethod
+    def ensures(anytime_guarantee: AnytimeGuarantee) -> bool:
+        return anytime_guarantee == AnytimeGuarantee.INCREASING_QUALITY
 
     @staticmethod
     def get_credits(**kwargs) -> Optional[Credits]:
@@ -165,7 +182,12 @@ class KlimaxEngine(Engine, OneshotPlannerMixin):
                 PlanGenerationResultStatus.UNSUPPORTED_PROBLEM, None, self.name,
                 log_messages=[LogMessage(LogLevel.ERROR, str(e))])
         seconds = float(timeout if timeout is not None else self._options.get("timeout", 30))
-        result = klimax.solve(domain_text, problem_text, timeout=seconds)
+        anytime = self._options.get(
+            "anytime", problem.kind.has_plan_length() and timeout is not None)
+        result = klimax.solve(domain_text, problem_text, timeout=seconds, anytime=anytime)
+        return self._result(problem, converted, writer, result, output_stream)
+
+    def _result(self, problem, converted, writer, result, output_stream=None):
         logs = _logs(result.diagnostics)
         if result.message:
             logs.append(LogMessage(LogLevel.INFO, result.message))
@@ -178,12 +200,65 @@ class KlimaxEngine(Engine, OneshotPlannerMixin):
             "klimax_ground_ms": str(result.ground_ms),
             "klimax_search_ms": str(result.search_ms),
             "klimax_expansions": str(result.expansions),
+            "klimax_plans": str(result.plans),
         }
         if result.status != klimax.Status.SOLVED:
             return PlanGenerationResult(_NO_PLAN[result.status], None, self.name, metrics, logs)
         plan = self._plan_back(problem, converted, writer, result)
+        optimal = result.optimal and problem.kind.has_plan_length()
+        status = PlanGenerationResultStatus.SOLVED_OPTIMALLY if optimal else \
+            PlanGenerationResultStatus.SOLVED_SATISFICING
+        return PlanGenerationResult(status, plan, self.name, metrics, logs)
+
+    def _get_solutions(self, problem, timeout=None, output_stream=None
+                       ) -> Iterator[PlanGenerationResult]:
+        try:
+            converted, writer, domain_text, problem_text = _hddl(problem)
+        except (up.exceptions.UPException, ValueError) as e:
+            yield PlanGenerationResult(
+                PlanGenerationResultStatus.UNSUPPORTED_PROBLEM, None, self.name,
+                log_messages=[LogMessage(LogLevel.ERROR, str(e))])
+            return
+        seconds = float(timeout if timeout is not None else self._options.get("timeout", 30))
+        found = queue.Queue()  # plans as they come, then the result (or an exception)
+
+        def search():
+            try:
+                found.put(klimax.solve(
+                    domain_text, problem_text, timeout=seconds, anytime=True,
+                    decomposition=False, on_plan=lambda plan, steps: found.put(plan)))
+            except BaseException as e:  # to the consumer, whatever it is
+                found.put(e)
+        threading.Thread(target=search, daemon=True).start()
+        last = None
+        while True:
+            item = found.get()
+            if isinstance(item, BaseException):
+                raise item
+            if isinstance(item, str):
+                if last is not None:
+                    yield self._intermediate(problem, converted, writer, domain_text,
+                                             problem_text, last)
+                last = item
+                continue
+            if last is None:
+                yield self._result(problem, converted, writer, item, output_stream)
+                return
+            final = self._intermediate(problem, converted, writer, domain_text, problem_text,
+                                       last)
+            optimal = item.optimal and problem.kind.has_plan_length()
+            yield PlanGenerationResult(
+                PlanGenerationResultStatus.SOLVED_OPTIMALLY if optimal else
+                PlanGenerationResultStatus.SOLVED_SATISFICING, final.plan, self.name)
+            return
+
+    def _intermediate(self, problem, converted, writer, domain_text, problem_text, plan_text):
+        """A plan found on the way, as a UPF result: its decomposition comes from verifying
+        it."""
+        steps = klimax.verify(domain_text, problem_text, plan_text, decomposition=True)
         return PlanGenerationResult(
-            PlanGenerationResultStatus.SOLVED_SATISFICING, plan, self.name, metrics, logs)
+            PlanGenerationResultStatus.INTERMEDIATE,
+            self._plan_back(problem, converted, writer, steps), self.name)
 
 
 class KlimaxValidator(Engine, PlanValidatorMixin):

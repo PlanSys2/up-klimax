@@ -24,8 +24,9 @@ from unified_planning.model.htn import HierarchicalProblem, Method
 from unified_planning.plans import ActionInstance, PlanKind, SequentialPlan
 from unified_planning.plans.hierarchical_plan import Decomposition, HierarchicalPlan
 from unified_planning.shortcuts import (
-    BoolType, Equals, Fluent, InstantaneousAction, Not, Object, OneshotPlanner, Or,
-    PlanValidator, UserType, get_environment)
+    AnytimePlanner, BoolType, Equals, Fluent, InstantaneousAction,
+    MinimizeSequentialPlanLength, Not, Object, OneshotPlanner, Or, PlanValidator, UserType,
+    get_environment)
 from unified_planning.test.examples import get_example_problems
 
 import up_klimax
@@ -212,3 +213,55 @@ def test_options():
         assert planner.solve(problem).status == S.SOLVED_SATISFICING
     with pytest.raises(Exception):
         OneshotPlanner(name="klimax", params={"threads": 2}).__enter__()
+
+
+def detour():
+    """`delivery` with another way of going somewhere, which stops to rest first: plans with
+    it are longer."""
+    problem, tasks = delivery()
+    Room = problem.user_type("Room")
+    go = problem.get_task("go")
+    rest = InstantaneousAction("rest")
+    problem.add_action(rest)
+    slow = Method("go-after-a-rest", to=Room)
+    slow.set_task(go, slow.to)
+    s1 = slow.add_subtask(rest)
+    s2 = slow.add_subtask(go, slow.to)
+    slow.set_ordered(s1, s2)
+    problem.add_method(slow)
+    return problem, tasks
+
+
+def test_anytime_plans_get_shorter():
+    problem, _ = detour()
+    problem.add_quality_metric(MinimizeSequentialPlanLength())
+    with AnytimePlanner(name="klimax") as planner:
+        results = list(planner.get_solutions(problem, timeout=20))
+    assert [r.status for r in results[:-1]] == [S.INTERMEDIATE] * (len(results) - 1)
+    assert results[-1].status == S.SOLVED_OPTIMALLY
+    lengths = [len(r.plan.action_plan.actions) for r in results]
+    assert lengths == sorted(lengths, reverse=True) and len(set(lengths[:-1])) == len(lengths) - 1
+    assert lengths[-1] == 13
+    for r in results:
+        assert validate(problem, r.plan).status == V.VALID
+
+
+def test_the_shortest_plan_when_asked_for():
+    problem, _ = detour()
+    # Without a metric: any plan, and no claim about it
+    assert solve(problem, timeout=20).status == S.SOLVED_SATISFICING
+    problem.add_quality_metric(MinimizeSequentialPlanLength())
+    result = solve(problem, timeout=20)
+    assert result.status == S.SOLVED_OPTIMALLY
+    assert len(result.plan.action_plan.actions) == 13
+    assert validate(problem, result.plan).status == V.VALID
+    # Not asked to go on: the first plan
+    with OneshotPlanner(name="klimax", params={"anytime": False}) as planner:
+        assert planner.solve(problem, timeout=20).status == S.SOLVED_SATISFICING
+
+
+def test_anytime_without_a_plan():
+    problem, _ = delivery(wings=False)
+    with AnytimePlanner(name="klimax") as planner:
+        results = list(planner.get_solutions(problem, timeout=10))
+    assert [r.status for r in results] == [S.UNSOLVABLE_PROVEN]
