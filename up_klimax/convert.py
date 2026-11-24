@@ -43,7 +43,9 @@ class Converted:
         self.top = top
 
 
-def convert(problem) -> Converted:
+def convert(problem, for_hddl=True) -> Converted:
+    """`problem` without fluents of object value; with `for_hddl`, also without constraints
+    HDDL cannot write (otherwise they stay where they are)."""
     env = problem.environment
     em = env.expression_manager
     flat = problem
@@ -90,15 +92,15 @@ def convert(problem) -> Converted:
                      *[new.parameter(p.name) for p in m.achieved_task.parameters])
         for p in m.preconditions:
             new.add_precondition(condition(p).substitute(to_new))
-        network(m, new, to_new, new.add_precondition)
+        network(m, new, to_new, new.add_precondition if for_hddl else new.add_constraint)
         out.add_method(new)
 
     tn = problem.task_network
-    top = bool(tn.non_temporal_constraints())
+    top = for_hddl and bool(tn.non_temporal_constraints())
     if not top:
         to_new = {em.ParameterExp(v): em.ParameterExp(out.task_network.add_variable(
             v.name, v.type)) for v in tn.variables}
-        network(tn, out.task_network, to_new, None)
+        network(tn, out.task_network, to_new, out.task_network.add_constraint)
     else:
         if out.has_name(TOP) or out.has_name(TOP_METHOD):
             raise ValueError(f"the name {TOP} is reserved")

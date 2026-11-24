@@ -18,12 +18,17 @@
     up_klimax.register()            # until UPF lists it among its engines
     with OneshotPlanner(name="klimax") as planner:
         result = planner.solve(hierarchical_problem, timeout=10)
+
+Also "klimax-val", a validator of hierarchical plans, and a compiler that other HTN engines can
+use: "klimax-htn-usertype-fluents-remover" (fluents with object values as predicates).
 """
 
+from .compiler import HtnUsertypeFluentsRemover, plan_back
 from .engine import KlimaxEngine, KlimaxValidator
 
 __version__ = "0.0.1"
-__all__ = ["KlimaxEngine", "KlimaxValidator", "register"]
+__all__ = ["HtnUsertypeFluentsRemover", "KlimaxEngine", "KlimaxValidator", "plan_back",
+           "register"]
 
 
 def register(environment=None):
@@ -34,3 +39,6 @@ def register(environment=None):
         env.factory.add_engine("klimax", __name__, "KlimaxEngine")
     if "klimax-val" not in env.factory.engines:
         env.factory.add_engine("klimax-val", __name__, "KlimaxValidator")
+    if "klimax-htn-usertype-fluents-remover" not in env.factory.engines:
+        env.factory.add_engine(
+            "klimax-htn-usertype-fluents-remover", __name__, "HtnUsertypeFluentsRemover")

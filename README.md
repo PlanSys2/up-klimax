@@ -28,6 +28,11 @@ with PlanValidator(name="klimax-val") as validator:
 - **`klimax-val`**, a validator of hierarchical plans: it checks the decomposition, not only
   that the actions can be executed.
 
+- **`klimax-htn-usertype-fluents-remover`**, a compiler for any HTN engine: a hierarchical
+  problem with fluents whose value is an object, as one with predicates only. UPF's own
+  compiler for it does not take problems with tasks. `up_klimax.plan_back(problem, plan)`
+  takes a plan of the result back to the problem, methods included.
+
 ## What it plans with
 
 Tasks and methods with preconditions; totally and partially ordered task networks; variables
