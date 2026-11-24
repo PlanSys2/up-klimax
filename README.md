@@ -1,4 +1,15 @@
-# up-klimax
+<p align="center">
+  <img src="https://raw.githubusercontent.com/PlanSys2/klimax/main/docs/images/klimax.png" alt="Klimax logo" width="300">
+</p>
+
+<h1 align="center">up-klimax</h1>
+
+<p align="center">
+  <a href="https://github.com/PlanSys2/up-klimax/actions/workflows/ci.yml"><img src="https://github.com/PlanSys2/up-klimax/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
+  <img src="https://img.shields.io/badge/python-%E2%89%A5%203.10-3776AB?logo=python&amp;logoColor=white" alt="Python 3.10 or newer">
+  <img src="https://img.shields.io/badge/status-in%20development-orange" alt="Status: in development">
+</p>
 
 [Klimax](https://github.com/PlanSys2/klimax), an HTN planner for HDDL, as an engine of the
 [Unified Planning Framework](https://github.com/aiplan4eu/unified-planning).
