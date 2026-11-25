@@ -25,9 +25,14 @@ FEATURES = {
                      "TASK_ORDER_PARTIAL"],
     "CONDITIONS_KIND": ["NEGATIVE_CONDITIONS", "DISJUNCTIVE_CONDITIONS", "EQUALITIES",
                         "EXISTENTIAL_CONDITIONS", "UNIVERSAL_CONDITIONS"],
-    "EFFECTS_KIND": ["CONDITIONAL_EFFECTS", "FORALL_EFFECTS"],
+    "EFFECTS_KIND": ["CONDITIONAL_EFFECTS", "FORALL_EFFECTS", "INCREASE_EFFECTS",
+                     "DECREASE_EFFECTS", "STATIC_FLUENTS_IN_NUMERIC_ASSIGNMENTS",
+                     "FLUENTS_IN_NUMERIC_ASSIGNMENTS"],
     "TYPING": ["FLAT_TYPING", "HIERARCHICAL_TYPING"],
-    "FLUENTS_TYPE": ["OBJECT_FLUENTS"],  # as predicates (convert.py)
+    # Object fluents as predicates (convert.py). Numbers without bounds: BOUNDED_TYPES is not
+    # declared, since nothing in HDDL says that a value must stay within limits
+    "FLUENTS_TYPE": ["OBJECT_FLUENTS", "INT_FLUENTS", "REAL_FLUENTS"],
+    "PROBLEM_TYPE": ["SIMPLE_NUMERIC_PLANNING", "GENERAL_NUMERIC_PLANNING"],
     "QUALITY_METRICS": ["PLAN_LENGTH"],
 }
 

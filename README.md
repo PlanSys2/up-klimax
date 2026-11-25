@@ -58,10 +58,12 @@ with PlanValidator(name="klimax-val") as validator:
 Tasks and methods with preconditions; totally and partially ordered task networks; variables
 in the initial task network; constraints between the parameters of a method or of the initial
 network; negative, disjunctive, existential and universal conditions; equalities; conditional
-and universal effects; flat and hierarchical typing; fluents whose value is an object. Each one
-is tested (`tests/test_kinds.py`).
+and universal effects; flat and hierarchical typing; fluents whose value is an object; fluents
+whose value is a number (integer or real), compared in conditions and assigned, increased or
+decreased in effects. Each one is tested (`tests/test_kinds.py`).
 
-Not yet: time (durative actions, temporal orderings) and numbers.
+Not yet: time (durative actions, temporal orderings), numbers with bounds and metrics other
+than the length of the plan.
 
 HDDL has no words for some of these. They are rewritten before Klimax reads the problem,
 keeping every name, so that the plan is a plan of the problem as given
