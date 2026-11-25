@@ -33,7 +33,12 @@ FEATURES = {
     # declared, since nothing in HDDL says that a value must stay within limits
     "FLUENTS_TYPE": ["OBJECT_FLUENTS", "INT_FLUENTS", "REAL_FLUENTS"],
     "PROBLEM_TYPE": ["SIMPLE_NUMERIC_PLANNING", "GENERAL_NUMERIC_PLANNING"],
-    "QUALITY_METRICS": ["PLAN_LENGTH"],
+    # Action costs as (total-cost) and the value of an expression at the end, as the :metric.
+    # A cost that depends on the state is not one Klimax can bound: it is then a metric as any
+    # other, improved but never proved the best
+    "QUALITY_METRICS": ["PLAN_LENGTH", "ACTIONS_COST", "FINAL_VALUE"],
+    "ACTIONS_COST_KIND": ["STATIC_FLUENTS_IN_ACTIONS_COST", "FLUENTS_IN_ACTIONS_COST",
+                          "INT_NUMBERS_IN_ACTIONS_COST", "REAL_NUMBERS_IN_ACTIONS_COST"],
 }
 
 

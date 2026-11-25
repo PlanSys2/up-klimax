@@ -20,9 +20,10 @@ from unified_planning.model.htn import HierarchicalProblem, Method
 from fractions import Fraction
 
 from unified_planning.shortcuts import (
-    GE, LT, And, BoolType, Equals, Exists, Fluent, Forall, InstantaneousAction, IntType,
-    MinimizeSequentialPlanLength, Not, Object, OneshotPlanner, Or, PlanValidator, RealType,
-    Replanner, UserType, Variable, get_environment)
+    GE, LT, And, AnytimePlanner, BoolType, Equals, Exists, Fluent, Forall, InstantaneousAction,
+    Int, IntType, MaximizeExpressionOnFinalState, MinimizeActionCosts,
+    MinimizeExpressionOnFinalState, MinimizeSequentialPlanLength, Not, Object, OneshotPlanner,
+    Or, PlanValidator, RealType, Replanner, UserType, Variable, get_environment)
 from unified_planning.test.examples import get_example_problems
 
 import up_klimax
@@ -148,6 +149,67 @@ def trip(variant):
 
 NUMBERS = ["int", "real", "increase", "static", "simple", "shortest"]
 
+
+def roads(variant):
+    """From a to d: straight (10), through e (2 + 3) or through b and c (1 + 1 + 1). `variant`
+    says what makes a plan better."""
+    Place = UserType("Place")
+    at = Fluent("at", BoolType(), l=Place)
+    road = Fluent("road", BoolType(), a=Place, b=Place)
+    length = Fluent("length", RealType() if variant == "real" else IntType(), a=Place, b=Place)
+    km = Fluent("km", IntType())
+    wear = Fluent("wear", IntType())
+    p = HierarchicalProblem("roads-" + variant)
+    for f in (at, road):
+        p.add_fluent(f, default_initial_value=False)
+    p.add_fluent(length, default_initial_value=1)
+    p.add_fluent(km, default_initial_value=0)
+    p.add_fluent(wear, default_initial_value=1)
+    a, b, c, d, e = (Object(n, Place) for n in "abcde")
+    p.add_objects([a, b, c, d, e])
+    drive = InstantaneousAction("drive", a=Place, b=Place)
+    drive.add_precondition(at(drive.a))
+    drive.add_precondition(road(drive.a, drive.b))
+    drive.add_effect(at(drive.a), False)
+    drive.add_effect(at(drive.b), True)
+    if variant in ("final", "final-max"):
+        drive.add_increase_effect(km(), length(drive.a, drive.b))
+    if variant == "state":  # each stretch costs more than the one before
+        drive.add_increase_effect(wear(), 1)
+    p.add_action(drive)
+    go = p.add_task("go", to=Place)
+    there = Method("there", to=Place)
+    there.set_task(go, there.to)
+    there.add_precondition(at(there.to))
+    p.add_method(there)
+    step = Method("step", to=Place, a=Place, b=Place)
+    step.set_task(go, step.to)
+    step.add_precondition(at(step.a))
+    step.set_ordered(step.add_subtask(drive, step.a, step.b), step.add_subtask(go, step.to))
+    p.add_method(step)
+    p.task_network.add_subtask(go, d)
+    half = Fraction(1, 2) if variant == "real" else 0
+    for x, y, n in ((a, d, 10), (a, b, 1 + half), (b, c, 1), (c, d, 1), (a, e, 2), (e, d, 3)):
+        p.set_initial_value(road(x, y), True)
+        p.set_initial_value(length(x, y), n)
+    p.set_initial_value(at(a), True)
+    if variant in ("costs", "real"):
+        p.add_quality_metric(MinimizeActionCosts({drive: length(drive.a, drive.b)}))
+    elif variant == "constant":
+        p.add_quality_metric(MinimizeActionCosts({}, default=Int(2)))
+    elif variant == "state":
+        p.add_quality_metric(MinimizeActionCosts({drive: wear()}))
+    elif variant == "final":
+        p.add_quality_metric(MinimizeExpressionOnFinalState(km()))
+    elif variant == "final-max":
+        p.add_quality_metric(MaximizeExpressionOnFinalState(km()))
+    return p
+
+
+# What the best plan is worth, and whether Klimax proves it the best
+METRICS = {"costs": (3, True), "real": (Fraction(7, 2), True), "constant": (2, True),
+           "state": (1, False), "final": (3, True), "final-max": (10, False)}
+
 VARIANTS = ["plain", "partial", "subtypes", "negative", "disjunctive", "equalities",
             "existential", "universal", "conditional", "forall"]
 
@@ -157,7 +219,7 @@ def test_each_feature_is_planned_with():
     shortest.name = "shortest"
     shortest.add_quality_metric(MinimizeSequentialPlanLength())
     problems = [lamps(v) for v in VARIANTS] + [trip(v) for v in NUMBERS] + [
-        get_example_problems()["htn-go"].problem, shortest]
+        roads(v) for v in METRICS] + [get_example_problems()["htn-go"].problem, shortest]
     seen = set()
     for problem in problems:
         assert up_klimax.KlimaxEngine.supports(problem.kind), problem.name
@@ -185,6 +247,49 @@ def test_numbers_decide_the_plan():
         result = planner.solve(trip("shortest"), timeout=10)
     assert result.status == S.SOLVED_OPTIMALLY
     assert len(result.plan.action_plan.actions) == 4
+
+
+def test_the_metric_decides_the_plan():
+    for variant, (best, proved) in METRICS.items():
+        problem = roads(variant)
+        with OneshotPlanner(name="klimax") as planner:
+            result = planner.solve(problem, timeout=10)
+        assert result.status == (S.SOLVED_OPTIMALLY if proved else S.SOLVED_SATISFICING), variant
+        assert Fraction(result.metrics["klimax_metric"]) == best, variant
+        # The validator values the plan the same, by its own means
+        with PlanValidator(name="klimax-val") as validator:
+            checked = validator.validate(problem, result.plan)
+        assert checked.status == V.VALID
+        assert checked.metric_evaluations == {problem.quality_metrics[0]: best}, variant
+    # The cheapest way is the longest; without a timeout, the first plan found
+    with OneshotPlanner(name="klimax") as planner:
+        result = planner.solve(roads("costs"), timeout=10)
+        assert [str(a) for a in result.plan.action_plan.actions] == [
+            "drive(a, b)", "drive(b, c)", "drive(c, d)"]
+        assert planner.solve(roads("costs")).status == S.SOLVED_SATISFICING
+
+
+def test_anytime_gets_cheaper():
+    problem = roads("costs")
+    costs = []
+    with AnytimePlanner(name="klimax") as planner, \
+            PlanValidator(name="klimax-val") as validator:
+        for result in planner.get_solutions(problem, timeout=10):
+            checked = validator.validate(problem, result.plan)
+            assert checked.status == V.VALID
+            costs.append(checked.metric_evaluations[problem.quality_metrics[0]])
+    assert result.status == S.SOLVED_OPTIMALLY
+    assert costs == sorted(costs, reverse=True) and len(set(costs)) == len(costs)
+    assert costs[-1] == 3
+
+
+def test_the_validator_counts_the_length():
+    problem = trip("shortest")
+    with OneshotPlanner(name="klimax") as planner:
+        plan = planner.solve(problem, timeout=10).plan
+    with PlanValidator(name="klimax-val") as validator:
+        checked = validator.validate(problem, plan)
+    assert checked.metric_evaluations == {problem.quality_metrics[0]: 4}
 
 
 def test_no_fuel_no_plan():

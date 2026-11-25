@@ -37,16 +37,20 @@ with PlanValidator(name="klimax-val") as validator:
   the search, before it is returned. When there is no plan it says so as a proof
   (`UNSOLVABLE_PROVEN`).
 - The same engine as an **anytime planner** (`AnytimePlanner(name="klimax")`): after the first
-  plan it gives shorter ones as it finds them. When the problem asks for the shortest plan
-  (`MinimizeSequentialPlanLength`) and Klimax proves that it has it, the status is
-  `SOLVED_OPTIMALLY`.
+  plan it gives better ones as it finds them: shorter (`MinimizeSequentialPlanLength`, or no
+  metric), cheaper (`MinimizeActionCosts`) or with a better value at the end
+  (`MinimizeExpressionOnFinalState`, `MaximizeExpressionOnFinalState`). When Klimax proves
+  that the plan is the best, the status is `SOLVED_OPTIMALLY`: it does for the shortest, and
+  for the cheapest when every action has a cost above zero that does not depend on the state.
+  The value of the metric for the plan is in `result.metrics["klimax_metric"]`.
 - **`klimax-replanner`** and **`klimax-repairer`**: `Replanner(problem,
   name="klimax-replanner")` keeps the problem, takes changes to it (initial values, goals,
   actions) and plans again; `PlanRepairer(name="klimax-repairer")` gives a plan back as it is if
   it is still valid for the problem, and plans again if not. UPF's own replanner does not take
   hierarchical problems.
 - **`klimax-val`**, a validator of hierarchical plans: it checks the decomposition, not only
-  that the actions can be executed.
+  that the actions can be executed, and gives what the plan is worth by the metric of the
+  problem (`metric_evaluations`).
 
 - **`klimax-htn-usertype-fluents-remover`**, a compiler for any HTN engine: a hierarchical
   problem with fluents whose value is an object, as one with predicates only. UPF's own
@@ -60,10 +64,12 @@ in the initial task network; constraints between the parameters of a method or o
 network; negative, disjunctive, existential and universal conditions; equalities; conditional
 and universal effects; flat and hierarchical typing; fluents whose value is an object; fluents
 whose value is a number (integer or real), compared in conditions and assigned, increased or
-decreased in effects. Each one is tested (`tests/test_kinds.py`).
+decreased in effects; as quality metrics, the length of the plan, action costs (constants,
+static fluents or fluents of the state, integer or real) and the value of an expression at
+the end. Each one is tested (`tests/test_kinds.py`).
 
-Not yet: time (durative actions, temporal orderings), numbers with bounds and metrics other
-than the length of the plan.
+Not yet: time (durative actions, temporal orderings), numbers with bounds and
+oversubscription.
 
 HDDL has no words for some of these. They are rewritten before Klimax reads the problem,
 keeping every name, so that the plan is a plan of the problem as given

@@ -17,6 +17,7 @@
 verifier of hierarchical plans."""
 
 import queue
+from fractions import Fraction
 import threading
 from typing import Iterator, Optional
 
@@ -95,10 +96,13 @@ class KlimaxEngine(Engine, OneshotPlannerMixin, AnytimePlannerMixin):
 
     Options (``OneshotPlanner(name="klimax", params={...})``):
 
-    - ``anytime``: go on after the first plan, looking for shorter ones, until none is left or
-      the timeout. By default, as a oneshot planner, only when the problem asks for the
-      shortest plan (`MinimizeSequentialPlanLength`) and a timeout is given; always as an
-      anytime planner. A plan proved the shortest comes back as `SOLVED_OPTIMALLY`.
+    - ``anytime``: go on after the first plan, looking for better ones, until none is left or
+      the timeout. By default, as a oneshot planner, only when the problem has a quality
+      metric and a timeout is given; always as an anytime planner. Better is what the metric
+      says: shorter (`MinimizeSequentialPlanLength`), cheaper (`MinimizeActionCosts`) or with
+      a better value at the end (`MinimizeExpressionOnFinalState` and its opposite). A plan
+      proved the best comes back as `SOLVED_OPTIMALLY`: the shortest; the cheapest, when
+      every action has a cost above zero that does not depend on the state.
     - ``timeout``: seconds when the call gives none (default 30).
     """
 
@@ -125,7 +129,7 @@ class KlimaxEngine(Engine, OneshotPlannerMixin, AnytimePlannerMixin):
 
     @staticmethod
     def satisfies(optimality_guarantee: OptimalityGuarantee) -> bool:
-        # Satisficing; a plan proved the shortest comes back as SOLVED_OPTIMALLY
+        # Satisficing; a plan proved the best comes back as SOLVED_OPTIMALLY
         return optimality_guarantee == OptimalityGuarantee.SATISFICING
 
     @staticmethod
@@ -183,7 +187,7 @@ class KlimaxEngine(Engine, OneshotPlannerMixin, AnytimePlannerMixin):
                 log_messages=[LogMessage(LogLevel.ERROR, str(e))])
         seconds = float(timeout if timeout is not None else self._options.get("timeout", 30))
         anytime = self._options.get(
-            "anytime", problem.kind.has_plan_length() and timeout is not None)
+            "anytime", bool(problem.quality_metrics) and timeout is not None)
         result = klimax.solve(domain_text, problem_text, timeout=seconds, anytime=anytime)
         return self._result(problem, converted, writer, result, output_stream)
 
@@ -202,10 +206,13 @@ class KlimaxEngine(Engine, OneshotPlannerMixin, AnytimePlannerMixin):
             "klimax_expansions": str(result.expansions),
             "klimax_plans": str(result.plans),
         }
+        if result.cost is not None:
+            metrics["klimax_metric"] = str(result.cost)
         if result.status != klimax.Status.SOLVED:
             return PlanGenerationResult(_NO_PLAN[result.status], None, self.name, metrics, logs)
         plan = self._plan_back(problem, converted, writer, result)
-        optimal = result.optimal and problem.kind.has_plan_length()
+        # Without a metric UPF asks for no best plan: Klimax's is then the shortest
+        optimal = result.optimal and bool(problem.quality_metrics)
         status = PlanGenerationResultStatus.SOLVED_OPTIMALLY if optimal else \
             PlanGenerationResultStatus.SOLVED_SATISFICING
         return PlanGenerationResult(status, plan, self.name, metrics, logs)
@@ -246,7 +253,7 @@ class KlimaxEngine(Engine, OneshotPlannerMixin, AnytimePlannerMixin):
                 return
             final = self._intermediate(problem, converted, writer, domain_text, problem_text,
                                        last)
-            optimal = item.optimal and problem.kind.has_plan_length()
+            optimal = item.optimal and bool(problem.quality_metrics)
             yield PlanGenerationResult(
                 PlanGenerationResultStatus.SOLVED_OPTIMALLY if optimal else
                 PlanGenerationResultStatus.SOLVED_SATISFICING, final.plan, self.name)
@@ -301,7 +308,14 @@ class KlimaxValidator(Engine, PlanValidatorMixin):
         report = klimax.verify(domain_text, problem_text, text)
         logs = _logs(report.diagnostics)
         if report.valid:
-            return ValidationResult(ValidationResultStatus.VALID, self.name, logs)
+            values = {}
+            for metric in problem.quality_metrics:
+                if metric.is_minimize_sequential_plan_length():
+                    values[metric] = len(plan.action_plan.actions)
+                elif report.metric is not None:
+                    values[metric] = Fraction(report.metric).limit_denominator(10 ** 9)
+            return ValidationResult(ValidationResultStatus.VALID, self.name, logs,
+                                    metric_evaluations=values or None)
         logs.append(LogMessage(LogLevel.INFO, report.reason))
         unknown = bool(report.diagnostics) or report.reason.startswith("unsupported")
         return ValidationResult(

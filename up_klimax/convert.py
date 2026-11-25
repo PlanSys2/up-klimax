@@ -29,6 +29,7 @@ from collections import OrderedDict
 from unified_planning.engines import CompilationKind
 from unified_planning.engines.compilers.usertype_fluents_remover import UsertypeFluentsRemover
 from unified_planning.model.htn import HierarchicalProblem, Method, Subtask, Task
+from unified_planning.model.metrics import MinimizeActionCosts
 from unified_planning.model.walkers.usertype_fluents_walker import UsertypeFluentsWalker
 
 TOP = "klimax-top"  # the task that stands for the initial network
@@ -71,6 +72,14 @@ def convert(problem, for_hddl=True) -> Converted:
         out.add_goal(g)
     for t in problem.tasks:
         out.add_task(t)
+    for metric in problem.quality_metrics:
+        if metric.is_minimize_sequential_plan_length():
+            continue  # what Klimax looks for when the problem has no metric
+        if metric.is_minimize_action_costs():
+            metric = MinimizeActionCosts(
+                {out.action(a.name): c for a, c in metric.costs.items() if c is not None},
+                metric.default, env)
+        out.add_quality_metric(metric)
 
     def network(source, target, substitution, precondition):
         """The subtasks and orderings of `source` in `target`; what else it constrains goes
