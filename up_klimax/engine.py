@@ -324,7 +324,10 @@ class KlimaxValidator(Engine, PlanValidatorMixin):
             return ValidationResult(ValidationResultStatus.VALID, self.name, logs,
                                     metric_evaluations=values or None)
         logs.append(LogMessage(LogLevel.INFO, report.reason))
-        unknown = bool(report.diagnostics) or report.reason.startswith("unsupported")
+        # Not checked, rather than not valid: errors in the problem as written, or something
+        # the verifier does not read (warnings do not count)
+        errors = any(d.severity == klimax.Severity.ERROR for d in report.diagnostics)
+        unknown = errors or report.reason.startswith("unsupported")
         return ValidationResult(
             ValidationResultStatus.UNKNOWN if unknown else ValidationResultStatus.INVALID,
             self.name, logs)
