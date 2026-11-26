@@ -66,10 +66,14 @@ and universal effects; flat and hierarchical typing; fluents whose value is an o
 whose value is a number (integer or real), compared in conditions and assigned, increased or
 decreased in effects; as quality metrics, the length of the plan, action costs (constants,
 static fluents or fluents of the state, integer or real) and the value of an expression at
-the end. Each one is tested (`tests/test_kinds.py`).
+the end; durative actions (with durations that are constants, fluents or intervals) and timed
+effects, for which the plan is a `TimeTriggeredPlan` inside the `HierarchicalPlan`: actions
+that neither the hierarchy nor what they read and write order run at once. Each one is tested
+(`tests/test_kinds.py`).
 
-Not yet: time (durative actions, temporal orderings), numbers with bounds and
-oversubscription.
+Not yet: orderings between the starts and the ends of tasks (`TASK_ORDER_TEMPORAL`: Klimax
+reads them in HDDL, but UPF does not write them), problems that need actions to overlap,
+numbers with bounds and oversubscription.
 
 HDDL has no words for some of these. They are rewritten before Klimax reads the problem,
 keeping every name, so that the plan is a plan of the problem as given

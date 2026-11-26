@@ -19,8 +19,9 @@ from unified_planning.engines import ValidationResultStatus as V
 from unified_planning.model.htn import HierarchicalProblem, Method
 from fractions import Fraction
 
+from unified_planning.plans import TimeTriggeredPlan
 from unified_planning.shortcuts import (
-    GE, LT, And, AnytimePlanner, BoolType, Equals, Exists, Fluent, Forall, InstantaneousAction,
+    GE, LT, And, AnytimePlanner, DurativeAction, EndTiming, GlobalStartTiming, StartTiming, BoolType, Equals, Exists, Fluent, Forall, InstantaneousAction,
     Int, IntType, MaximizeExpressionOnFinalState, MinimizeActionCosts,
     MinimizeExpressionOnFinalState, MinimizeSequentialPlanLength, Not, Object, OneshotPlanner,
     Or, PlanValidator, RealType, Replanner, UserType, Variable, get_environment)
@@ -206,6 +207,63 @@ def roads(variant):
     return p
 
 
+def jobs(variant):
+    """Two workers with a job each, which lasts; `variant` says what of time the problem has."""
+    Worker = UserType("Worker")
+    idle = Fluent("idle", BoolType(), w=Worker)
+    done = Fluent("done", BoolType(), w=Worker)
+    awake = Fluent("awake", BoolType(), w=Worker)
+    number = RealType() if variant == "real" else IntType()
+    pace = Fluent("pace", number, w=Worker)
+    tired = Fluent("tired", IntType())
+    p = HierarchicalProblem("jobs-" + variant)
+    p.add_fluent(idle, default_initial_value=True)
+    p.add_fluent(done, default_initial_value=False)
+    p.add_fluent(awake, default_initial_value=variant != "timed")
+    p.add_fluent(pace, default_initial_value=5)
+    p.add_fluent(tired, default_initial_value=0)
+    ann, bob = Object("ann", Worker), Object("bob", Worker)
+    p.add_objects([ann, bob])
+    work = DurativeAction("work", w=Worker)
+    if variant == "between":  # any duration from 3 to 5: Klimax takes the least
+        work.set_closed_duration_interval(3, 5)
+    elif variant in ("static", "real"):
+        work.set_fixed_duration(pace(work.w))
+    elif variant == "state":  # each job longer than the one before
+        work.set_fixed_duration(pace(work.w) + tired())
+        work.add_increase_effect(EndTiming(), tired(), 1)
+    else:
+        work.set_fixed_duration(5)
+    work.add_condition(StartTiming(), idle(work.w))
+    work.add_condition(StartTiming(), awake(work.w))
+    work.add_effect(StartTiming(), idle(work.w), False)
+    work.add_effect(EndTiming(), idle(work.w), True)
+    work.add_effect(EndTiming(), done(work.w), True)
+    p.add_action(work)
+    job = p.add_task("job", w=Worker)
+    m = Method("m", w=Worker)
+    m.set_task(job, m.w)
+    m.add_subtask(work, m.w)
+    p.add_method(m)
+    t1 = p.task_network.add_subtask(job, ann)
+    t2 = p.task_network.add_subtask(job, bob)
+    if variant == "ordered":
+        p.task_network.set_ordered(t1, t2)
+    if variant == "real":
+        p.set_initial_value(pace(bob), Fraction(5, 2))
+    if variant == "timed":  # nobody is awake before 7
+        p.add_timed_effect(GlobalStartTiming(7), awake(ann), True)
+        p.add_timed_effect(GlobalStartTiming(7), awake(bob), True)
+    p.add_goal(done(ann))
+    p.add_goal(done(bob))
+    return p
+
+
+# When the plan ends
+TIMES = {"plain": 5, "ordered": 10, "between": 3, "static": 5, "real": 5, "timed": None,
+         "state": None}
+
+
 # What the best plan is worth, and whether Klimax proves it the best
 METRICS = {"costs": (3, True), "real": (Fraction(7, 2), True), "constant": (2, True),
            "state": (1, False), "final": (3, True), "final-max": (10, False)}
@@ -219,7 +277,8 @@ def test_each_feature_is_planned_with():
     shortest.name = "shortest"
     shortest.add_quality_metric(MinimizeSequentialPlanLength())
     problems = [lamps(v) for v in VARIANTS] + [trip(v) for v in NUMBERS] + [
-        roads(v) for v in METRICS] + [get_example_problems()["htn-go"].problem, shortest]
+        roads(v) for v in METRICS] + [jobs(v) for v in TIMES] + [
+        get_example_problems()["htn-go"].problem, shortest]
     seen = set()
     for problem in problems:
         assert up_klimax.KlimaxEngine.supports(problem.kind), problem.name
@@ -290,6 +349,25 @@ def test_the_validator_counts_the_length():
     with PlanValidator(name="klimax-val") as validator:
         checked = validator.validate(problem, plan)
     assert checked.metric_evaluations == {problem.quality_metrics[0]: 4}
+
+
+def test_time():
+    for variant, ends in TIMES.items():
+        problem = jobs(variant)
+        with OneshotPlanner(name="klimax") as planner:
+            result = planner.solve(problem, timeout=10)
+        assert result.status == S.SOLVED_SATISFICING, variant
+        flat = result.plan.action_plan
+        assert isinstance(flat, TimeTriggeredPlan), variant
+        made = max(start + (duration or 0) for start, _, duration in flat.timed_actions)
+        if ends is not None:
+            assert made == ends, variant
+        with PlanValidator(name="klimax-val") as validator:
+            assert validator.validate(problem, result.plan).status == V.VALID, variant
+    # Nobody starts before the literal that wakes them up
+    with OneshotPlanner(name="klimax") as planner:
+        plan = planner.solve(jobs("timed"), timeout=10).plan
+    assert all(start > 7 for start, _, _ in plan.action_plan.timed_actions)
 
 
 def test_no_fuel_no_plan():

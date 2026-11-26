@@ -42,7 +42,7 @@ from unified_planning.engines.results import (
     ValidationResultStatus,
 )
 from unified_planning.io import PDDLWriter
-from unified_planning.plans import ActionInstance, SequentialPlan
+from unified_planning.plans import ActionInstance, SequentialPlan, TimeTriggeredPlan
 from unified_planning.plans.hierarchical_plan import (
     Decomposition,
     HierarchicalPlan,
@@ -172,7 +172,14 @@ class KlimaxEngine(Engine, OneshotPlannerMixin, AnytimePlannerMixin):
             root = decomposition(converted.problem.method(TOP_METHOD), top.subtasks)
         else:
             root = decomposition(converted.problem.task_network, result.roots)
-        flat = SequentialPlan([instance(i) for i in result.sequence], problem.environment)
+        if result.makespan is None:
+            flat = SequentialPlan([instance(i) for i in result.sequence], problem.environment)
+        else:
+            # With time: each action with when it starts and what it lasts (nothing: none)
+            def timed(i):
+                start, end = _time(steps[i].start), _time(steps[i].end)
+                return (start, instance(i), end - start if end > start else None)
+            flat = TimeTriggeredPlan([timed(i) for i in result.sequence], problem.environment)
         return HierarchicalPlan(flat, root)
 
     def _solve(self, problem, heuristic=None, timeout=None, output_stream=None):
@@ -311,7 +318,7 @@ class KlimaxValidator(Engine, PlanValidatorMixin):
             values = {}
             for metric in problem.quality_metrics:
                 if metric.is_minimize_sequential_plan_length():
-                    values[metric] = len(plan.action_plan.actions)
+                    values[metric] = len(_timed_actions(plan))
                 elif report.metric is not None:
                     values[metric] = Fraction(report.metric).limit_denominator(10 ** 9)
             return ValidationResult(ValidationResultStatus.VALID, self.name, logs,
@@ -321,6 +328,19 @@ class KlimaxValidator(Engine, PlanValidatorMixin):
         return ValidationResult(
             ValidationResultStatus.UNKNOWN if unknown else ValidationResultStatus.INVALID,
             self.name, logs)
+
+
+def _time(seconds) -> Fraction:
+    """A time of Klimax, which writes them with three decimals, as UPF wants them."""
+    return Fraction(seconds).limit_denominator(1000)
+
+
+def _timed_actions(plan):
+    """The actions of a hierarchical plan with their start and duration (None: no times)."""
+    flat = plan.action_plan
+    if isinstance(flat, TimeTriggeredPlan):
+        return list(flat.timed_actions)
+    return [(None, a, None) for a in flat.actions]
 
 
 def _linear(network):
@@ -349,10 +369,13 @@ def _plan_text(converted, writer, plan) -> str:
     name = writer.get_pddl_name
     ids = {}  # of each action instance, by identity
     lines = ["==>"]
-    for n, a in enumerate(plan.action_plan.actions):
+    for n, (start, a, duration) in enumerate(_timed_actions(plan)):
         ids[id(a)] = n + 1
         args = " ".join(name(p.object()) for p in a.actual_parameters)
-        lines.append(f"{n + 1} {name(problem.action(a.action.name))} {args}".rstrip())
+        text = f"{name(problem.action(a.action.name))} {args}".rstrip()
+        if start is not None:
+            text = f"{float(start):.6f}: ({text}) [{float(duration or 0):.6f}]"
+        lines.append(f"{n + 1} {text}")
     tree = []
     counter = [len(ids)]
 

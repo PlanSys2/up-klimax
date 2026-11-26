@@ -103,6 +103,11 @@ def plan_back(problem, plan) -> HierarchicalPlan:
         return Decomposition({label: back(i) for label, i in decomposition.subtasks.items()})
 
     root = tree(plan.decomposition)
-    flat = up.plans.SequentialPlan(
-        [back(a) for a in plan.action_plan.actions], problem.environment)
+    if isinstance(plan.action_plan, up.plans.TimeTriggeredPlan):
+        flat = up.plans.TimeTriggeredPlan(
+            [(start, back(a), duration) for start, a, duration in plan.action_plan.timed_actions],
+            problem.environment)
+    else:
+        flat = up.plans.SequentialPlan(
+            [back(a) for a in plan.action_plan.actions], problem.environment)
     return HierarchicalPlan(flat, root)

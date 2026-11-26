@@ -70,6 +70,9 @@ def convert(problem, for_hddl=True) -> Converted:
         out.set_initial_value(f, v)
     for g in flat.goals:
         out.add_goal(g)
+    for timing, effects in flat.timed_effects.items():
+        for e in effects:
+            out.add_timed_effect(timing, e.fluent, e.value, e.condition)
     for t in problem.tasks:
         out.add_task(t)
     for metric in problem.quality_metrics:

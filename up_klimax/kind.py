@@ -36,6 +36,11 @@ FEATURES = {
     # Action costs as (total-cost) and the value of an expression at the end, as the :metric.
     # A cost that depends on the state is not one Klimax can bound: it is then a metric as any
     # other, improved but never proved the best
+    # Durative actions and timed initial literals; the plan is then a time-triggered one. Not
+    # TASK_ORDER_TEMPORAL: UPF does not write the orderings between time points in HDDL
+    "TIME": ["CONTINUOUS_TIME", "TIMED_EFFECTS", "DURATION_INEQUALITIES"],
+    "EXPRESSION_DURATION": ["STATIC_FLUENTS_IN_DURATIONS", "FLUENTS_IN_DURATIONS",
+                            "INT_TYPE_DURATIONS", "REAL_TYPE_DURATIONS"],
     "QUALITY_METRICS": ["PLAN_LENGTH", "ACTIONS_COST", "FINAL_VALUE"],
     "ACTIONS_COST_KIND": ["STATIC_FLUENTS_IN_ACTIONS_COST", "FLUENTS_IN_ACTIONS_COST",
                           "INT_NUMBERS_IN_ACTIONS_COST", "REAL_NUMBERS_IN_ACTIONS_COST"],
