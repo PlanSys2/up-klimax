@@ -11,33 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build python3-venv
-
+      # up-klimax with its dependencies from PyPI: unified-planning and klimax-planner
       - name: Python environment
         run: |
           python3 -m venv "$RUNNER_TEMP/venv"
-          "$RUNNER_TEMP/venv/bin/pip" install nanobind pytest unified-planning
-
-      # Until klimax-planner is on PyPI: Klimax's Python module from source, on Kairos' modules
-      - name: Build Kairos and Klimax's Python module
-        run: |
-          git clone --depth 1 https://github.com/PlanSys2/kairos.git "$RUNNER_TEMP/kairos"
-          cmake -S "$RUNNER_TEMP/kairos" -B "$RUNNER_TEMP/kairos-build" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DKAIROS_INSTALL_CORE=ON -DKAIROS_BUILD_TESTS=OFF \
-            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/prefix"
-          cmake --build "$RUNNER_TEMP/kairos-build"
-          cmake --install "$RUNNER_TEMP/kairos-build"
-          git clone --depth 1 https://github.com/PlanSys2/klimax.git "$RUNNER_TEMP/klimax"
-          cmake -S "$RUNNER_TEMP/klimax" -B "$RUNNER_TEMP/klimax-build" -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/prefix" \
-            -DKLIMAX_BUILD_PYTHON=ON -DKLIMAX_BUILD_TESTS=OFF -DKLIMAX_BUILD_CLI=OFF \
-            -DPython_EXECUTABLE="$RUNNER_TEMP/venv/bin/python"
-          cmake --build "$RUNNER_TEMP/klimax-build"
+          "$RUNNER_TEMP/venv/bin/pip" install pytest -e .
 
       - name: Test
-        run: |
-          PYTHONPATH="$RUNNER_TEMP/klimax-build/python:$PWD" \
-            "$RUNNER_TEMP/venv/bin/python" -m pytest -q
+        run: "$RUNNER_TEMP/venv/bin/python" -m pytest -q
