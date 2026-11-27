@@ -28,7 +28,7 @@ from .compiler import HtnUsertypeFluentsRemover, plan_back
 from .engine import KlimaxEngine, KlimaxValidator
 from .replan import KlimaxRepairer, KlimaxReplanner
 
-__version__ = "0.0.1"
+__version__ = "1.0.0"
 __all__ = ["HtnUsertypeFluentsRemover", "KlimaxEngine", "KlimaxRepairer", "KlimaxReplanner",
            "KlimaxValidator", "plan_back", "register"]
 
