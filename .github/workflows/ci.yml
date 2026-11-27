@@ -18,4 +18,5 @@ jobs:
           "$RUNNER_TEMP/venv/bin/pip" install pytest -e .
 
       - name: Test
-        run: "$RUNNER_TEMP/venv/bin/python" -m pytest -q
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" -m pytest -q
