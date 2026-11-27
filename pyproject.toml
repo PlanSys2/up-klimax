@@ -10,7 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 authors = [{ name = "Francisco Martín Rico" }]
 requires-python = ">=3.10"
-dependencies = ["unified-planning", "klimax-planner"]
+dependencies = ["unified-planning", "klimax-planner>=1.0.0"]
 keywords = ["planning", "htn", "hddl", "unified-planning", "aiplan4eu", "hierarchical planning", "robotics"]
 classifiers = [
   "Programming Language :: Python :: 3",

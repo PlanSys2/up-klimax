@@ -288,10 +288,12 @@ def test_each_feature_is_planned_with():
         with PlanValidator(name="klimax-val") as validator:
             assert validator.validate(problem, result.plan).status == V.VALID, problem.name
         seen |= problem.kind.features
-    # UPF 1.3.0 never marks a problem with STATIC_FLUENTS_IN_NUMERIC_ASSIGNMENTS (it looks for
-    # expressions in a set of fluents, so every fluent counts as not static; later versions
-    # do): trip("static") is the problem that has it
-    assert SUPPORTED_KIND.features - seen <= {"STATIC_FLUENTS_IN_NUMERIC_ASSIGNMENTS"}
+    # Fluents in numeric assignments: UPF 1.3.0 marks every one as not static (it looks for
+    # expressions in a set of fluents), later versions mark trip("static")'s as static. One of
+    # the two, whichever the version says
+    pair = {"STATIC_FLUENTS_IN_NUMERIC_ASSIGNMENTS", "FLUENTS_IN_NUMERIC_ASSIGNMENTS"}
+    assert seen & pair
+    assert SUPPORTED_KIND.features - seen <= pair
 
 
 def test_numbers_decide_the_plan():
@@ -326,6 +328,35 @@ def test_the_metric_decides_the_plan():
         assert [str(a) for a in result.plan.action_plan.actions] == [
             "drive(a, b)", "drive(b, c)", "drive(c, d)"]
         assert planner.solve(roads("costs")).status == S.SOLVED_SATISFICING
+
+
+def test_actions_with_a_cost_and_no_effects():
+    # As the optimal cases of UPF's engine tests: actions that only cost. The cheapest way is the
+    # longest, and its cost is what the validator says (UPF 1.3's writer left such actions free)
+    from unified_planning.model.metrics import MinimizeActionCosts
+    from unified_planning.shortcuts import InstantaneousAction, Int
+    from unified_planning.model.htn import Task
+    problem = HierarchicalProblem("costs_only")
+    acts = [InstantaneousAction(f"a{i}") for i in range(5)]
+    for act in acts:
+        problem.add_action(act)
+    task = Task("work")
+    problem.add_task(task)
+    for name, sub in (("short", acts[:2]), ("long", acts[2:])):
+        m = Method(name)
+        m.set_task(task)
+        m.set_ordered(*[m.add_subtask(a) for a in sub])
+        problem.add_method(m)
+    problem.task_network.add_subtask(task)
+    problem.add_quality_metric(
+        MinimizeActionCosts({a: Int(c) for a, c in zip(acts, (1, 10, 1, 1, 1))}))
+    with OneshotPlanner(name="klimax") as planner:
+        result = planner.solve(problem, timeout=10)
+    assert result.status == S.SOLVED_OPTIMALLY
+    assert [str(a) for a in result.plan.action_plan.actions] == ["a2", "a3", "a4"]
+    with PlanValidator(name="klimax-val") as validator:
+        checked = validator.validate(problem, result.plan)
+    assert checked.metric_evaluations == {problem.quality_metrics[0]: 3}
 
 
 def test_anytime_gets_cheaper():

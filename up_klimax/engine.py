@@ -79,11 +79,25 @@ _LOG_LEVEL = {
 }
 
 
+class _Writer(PDDLWriter):
+    """UPF's writer, but for an action with a cost and no effects: UPF 1.3 writes the cost only
+    inside the effects of an action that has some, so such an action cost nothing (its PDDL
+    writer, _write_untimed_effects)."""
+
+    def _write_untimed_effects(self, item, converter, out, costs):
+        cost = costs.get(item)
+        if len(item.effects) == 0 and cost is not None and not (
+                cost.is_constant() and cost.constant_value() == 0):
+            out.write(f"\n  :effect (and (increase (total-cost) {converter.convert(cost)}))")
+            return
+        super()._write_untimed_effects(item, converter, out, costs)
+
+
 def _hddl(problem):
     """The problem as Klimax reads it: how it was rewritten, the writer (which maps the names
     back) and the two texts."""
     converted = convert(problem)
-    writer = PDDLWriter(converted.problem)
+    writer = _Writer(converted.problem)
     return converted, writer, writer.get_domain(), writer.get_problem()
 
 
